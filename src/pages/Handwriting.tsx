@@ -5,24 +5,85 @@ import { Card } from "@/components/ui/card";
 import { PenTool, ArrowLeft, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import jsPDF from "jspdf";
 
 const Handwriting = () => {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
   const [convertedText, setConvertedText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     if (!inputText.trim()) {
       toast.error("Please enter some text to convert");
       return;
     }
 
-    setConvertedText(inputText);
-    toast.success("Text converted to handwriting style!");
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-homework', {
+        body: { text: inputText, type: 'handwriting' }
+      });
+
+      if (error) {
+        console.error('Error converting text:', error);
+        toast.error(error.message || "Failed to convert text");
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        setIsLoading(false);
+        return;
+      }
+
+      setConvertedText(data.result);
+      toast.success("Text converted to handwriting style!");
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleExportPDF = () => {
-    toast.success("PDF export feature coming soon!");
+    if (!convertedText) {
+      toast.error("No text to export");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      const lineHeight = 10;
+      
+      // Use a more handwriting-like appearance with the default font
+      doc.setFontSize(12);
+      
+      const lines = doc.splitTextToSize(convertedText, maxWidth);
+      let y = margin;
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (y + lineHeight > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(lines[i], margin, y);
+        y += lineHeight;
+      }
+
+      doc.save("handwritten-homework.pdf");
+      toast.success("PDF exported successfully!");
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error("Failed to export PDF");
+    }
   };
 
   return (
@@ -66,10 +127,11 @@ const Handwriting = () => {
               />
               <Button
                 onClick={handleConvert}
+                disabled={isLoading}
                 className="w-full mt-4"
                 size="lg"
               >
-                Convert to Handwriting
+                {isLoading ? "Converting..." : "Convert to Handwriting"}
               </Button>
             </Card>
 

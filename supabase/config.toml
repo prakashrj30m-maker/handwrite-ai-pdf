@@ -1,0 +1,7 @@
+project_id = "rykxngcgwhtdybrmwuel"
+
+[functions.solve-math]
+verify_jwt = false
+
+[functions.generate-homework]
+verify_jwt = false

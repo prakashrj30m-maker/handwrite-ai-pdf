@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { BookOpen, ArrowLeft, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import jsPDF from "jspdf";
 
 const Solver = () => {
   const navigate = useNavigate();
@@ -19,16 +21,71 @@ const Solver = () => {
     }
 
     setIsLoading(true);
-    // Simulate AI processing
-    setTimeout(() => {
-      setSolution(`Solution for: ${problem}\n\nStep 1: Identify the problem type\nStep 2: Apply relevant formulas\nStep 3: Solve systematically\n\n[Detailed solution would appear here with proper mathematical notation]`);
-      setIsLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('solve-math', {
+        body: { problem }
+      });
+
+      if (error) {
+        console.error('Error solving problem:', error);
+        toast.error(error.message || "Failed to solve problem");
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        setIsLoading(false);
+        return;
+      }
+
+      setSolution(data.solution);
       toast.success("Problem solved!");
-    }, 2000);
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleExportPDF = () => {
-    toast.success("PDF export feature coming soon!");
+    if (!solution) {
+      toast.error("No solution to export");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+
+      // Add title
+      doc.setFontSize(16);
+      doc.text("Math Solution", margin, margin);
+
+      // Add problem
+      doc.setFontSize(12);
+      doc.text("Problem:", margin, margin + 15);
+      const problemLines = doc.splitTextToSize(problem, maxWidth);
+      doc.setFontSize(10);
+      doc.text(problemLines, margin, margin + 22);
+
+      // Add solution
+      const solutionY = margin + 22 + (problemLines.length * 7) + 10;
+      doc.setFontSize(12);
+      doc.text("Solution:", margin, solutionY);
+      const solutionLines = doc.splitTextToSize(solution, maxWidth);
+      doc.setFontSize(10);
+      doc.text(solutionLines, margin, solutionY + 7);
+
+      doc.save("math-solution.pdf");
+      toast.success("PDF exported successfully!");
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error("Failed to export PDF");
+    }
   };
 
   return (
