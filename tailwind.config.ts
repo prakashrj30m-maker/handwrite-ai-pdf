@@ -54,6 +54,11 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         handwriting: ['Caveat', 'cursive'],
+        'hand-cursive': ['Caveat', 'cursive'],
+        'hand-print': ['Patrick Hand', 'cursive'],
+        'hand-mixed': ['Indie Flower', 'cursive'],
+        'hand-kalam': ['Kalam', 'cursive'],
+        'hand-shadow': ['Shadows Into Light', 'cursive'],
       },
       borderRadius: {
         lg: "var(--radius)",

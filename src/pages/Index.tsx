@@ -1,9 +1,46 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen, PenTool, FileText, ArrowRight } from "lucide-react";
+import { BookOpen, PenTool, FileText, ArrowRight, LogOut, User, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { User as SupabaseUser } from "@supabase/supabase-js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error("Failed to sign out");
+    } else {
+      toast.success("Signed out successfully");
+      setUser(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -17,6 +54,27 @@ const Index = () => {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-foreground/80 hover:text-foreground transition-smooth">Features</a>
             <a href="#how-it-works" className="text-foreground/80 hover:text-foreground transition-smooth">How It Works</a>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <User className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate('/fonts')}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    My Fonts
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button onClick={() => navigate('/auth')}>Sign In</Button>
+            )}
             <Button onClick={() => navigate('/solver')}>Get Started</Button>
           </nav>
         </div>
@@ -57,7 +115,7 @@ const Index = () => {
               </div>
               <h3 className="text-2xl font-semibold mb-4">Handwriting Style</h3>
               <p className="text-muted-foreground">
-                Convert typed text to beautiful handwriting style that matches your natural writing. Perfect for personalized assignments.
+                Convert typed text to beautiful handwriting style. Upload your own handwriting samples for personalized PDFs.
               </p>
             </div>
 

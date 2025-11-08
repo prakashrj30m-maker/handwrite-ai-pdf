@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -7,12 +7,59 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
+import { User } from "@supabase/supabase-js";
 
 const Handwriting = () => {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
   const [convertedText, setConvertedText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [activeFont, setActiveFont] = useState("Caveat");
+
+  useEffect(() => {
+    // Check user session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadActiveFont(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          loadActiveFont(session.user.id);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadActiveFont = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('handwriting_fonts')
+        .select('font_style')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (data && !error) {
+        // Map font styles to Google Fonts
+        const fontMap: Record<string, string> = {
+          cursive: "Caveat",
+          print: "Patrick Hand",
+          mixed: "Indie Flower"
+        };
+        setActiveFont(fontMap[data.font_style] || "Caveat");
+      }
+    } catch (error) {
+      console.log('No active font found, using default');
+    }
+  };
 
   const handleConvert = async () => {
     if (!inputText.trim()) {
@@ -63,8 +110,9 @@ const Handwriting = () => {
       const maxWidth = pageWidth - 2 * margin;
       const lineHeight = 10;
       
-      // Use a more handwriting-like appearance with the default font
-      doc.setFontSize(12);
+      // Set the active font style
+      doc.setFont(activeFont, "normal");
+      doc.setFontSize(14);
       
       const lines = doc.splitTextToSize(convertedText, maxWidth);
       let y = margin;
@@ -140,13 +188,26 @@ const Handwriting = () => {
               <h2 className="text-xl font-semibold mb-4">Handwriting Preview</h2>
               <div className="min-h-[400px] p-4 bg-card/50 rounded-lg border border-border overflow-auto">
                 {convertedText ? (
-                  <div className="font-handwriting text-2xl leading-loose text-ink whitespace-pre-wrap">
+                  <div 
+                    className="text-2xl leading-loose text-ink whitespace-pre-wrap"
+                    style={{ fontFamily: activeFont }}
+                  >
                     {convertedText}
                   </div>
                 ) : (
                   <p className="text-muted-foreground italic">Your handwriting will appear here...</p>
                 )}
               </div>
+              {user && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/fonts')}
+                  className="mt-4"
+                >
+                  Customize Font Style
+                </Button>
+              )}
             </Card>
           </div>
 
@@ -154,10 +215,10 @@ const Handwriting = () => {
           <Card className="mt-8 p-6 bg-secondary/30">
             <h3 className="text-lg font-semibold mb-3">✨ Handwriting Style Tips</h3>
             <ul className="space-y-2 text-muted-foreground">
-              <li>• The converted text uses a natural handwriting font</li>
-              <li>• Perfect for assignments that require handwritten submissions</li>
+              <li>• The converted text uses natural handwriting fonts</li>
+              <li>• Sign in to upload your own handwriting samples</li>
+              <li>• Perfect for assignments requiring handwritten submissions</li>
               <li>• Export to PDF maintains the handwriting appearance</li>
-              <li>• Customize spacing and size for better readability</li>
             </ul>
           </Card>
         </div>
